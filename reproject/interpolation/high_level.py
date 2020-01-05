@@ -3,7 +3,7 @@
 from astropy.utils import deprecated_renamed_argument
 
 from ..utils import parse_input_data, parse_output_projection
-from .chunking import _reproject_chunking
+from .core import _reproject_full
 
 __all__ = ['reproject_interp']
 
@@ -81,5 +81,5 @@ def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
     if isinstance(order, str):
         order = ORDER[order]
 
-    return _reproject_chunking(array_in, wcs_in, wcs_out, shape_out=shape_out, order=order,
+    return _reproject_full(array_in, wcs_in, wcs_out, shape_out=shape_out, order=order,
                            array_out=output_array, return_footprint=return_footprint)
