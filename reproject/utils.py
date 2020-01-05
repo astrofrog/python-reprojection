@@ -101,17 +101,21 @@ def parse_output_projection(output_projection, shape_out=None, output_array=None
     return wcs_out, shape_out
 
 
-def block(reproject_func, input_data, wcs_out_sub, shape_out, return_footprint):
-    array, footprint = reproject_func(input_data=input_data, output_projection=wcs_out_sub,
+def _block(reproject_func, input_data, wcs_out_sub, shape_out, i_range, j_range, return_footprint):
+    # i and j range must be passed through for multiprocessing impl to know where to reinsert patches
+
+    res = reproject_func(input_data=input_data, output_projection=wcs_out_sub,
                                       shape_out=shape_out, return_footprint=return_footprint)
-    return array, footprint
 
-def reproject_blocked(reproject_func, block_size=(100,100), output_array=None, output_footprint=None,
-                      parallel=0, **kwargs):
-    print(kwargs)
-    #array_in, wcs_in = parse_input_data(kwargs.get('input_data'), hdu_in=kwargs.get('hdu_in'))
+    return i_range, j_range, res
 
-    kwargs['wcs_out'], kwargs['shape_out'] = parse_output_projection(kwargs.get('output_projection'), shape_out=kwargs.get('shape_out'),
+def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None, output_footprint=None,
+                      parallel=False, **kwargs):
+
+    if kwargs.get('return_footprint') == False and output_footprint is not None:
+        raise TypeError("If no footprint is needed, an output_footprint should not be passed in")
+
+    kwargs['wcs_out'], kwargs['shape_out'] = parse_output_projection(kwargs['output_projection'], shape_out=kwargs.get('shape_out'),
                                                  output_array=kwargs.get('output_array'))
 
 
@@ -124,7 +128,14 @@ def reproject_blocked(reproject_func, block_size=(100,100), output_array=None, o
     if output_footprint is None and kwargs.get('return_footprint') != False:
         output_footprint = np.zeros(kwargs['shape_out'], dtype=float)
 
-    proc_pool = futures.ProcessPoolExecutor()
+    #setup variables needed for multiprocessing if required
+    proc_pool = None
+    blocks_futures = []
+    if parallel == True or parallel is int:
+        if parallel is int:
+            proc_pool = futures.ProcessPoolExecutor(parallel)
+        else:
+            proc_pool = futures.ProcessPoolExecutor()
 
     for imin in range(0, output_array.shape[0], block_size[0]):
         imax = min(imin + block_size[0], output_array.shape[0])
@@ -137,19 +148,33 @@ def reproject_blocked(reproject_func, block_size=(100,100), output_array=None, o
             wcs_out_sub.wcs.crpix[0] -= jmin
             wcs_out_sub.wcs.crpix[1] -= imin
 
-            #array_sub[:], footprint_sub = reprojct_func(input_data=kwargs['input_data'], output_projection=wcs_out_sub,
-            #                shape_out=shape_out_sub,
-            #                return_footprint=kwargs['return_footprint'])
+            #if sequential input data and reinsert block into main array immediately
+            if proc_pool is None:
+                completed_block = _block(reproject_func=reproject_func, input_data=kwargs['input_data'], wcs_out_sub=wcs_out_sub,
+                                 shape_out=shape_out_sub, return_footprint=kwargs['return_footprint'],
+                                        j_range=(jmin, jmax), i_range = (imin, imax))
 
-            array_sub, footprint_sub = block(reproject_func=reproject_func, input_data=kwargs['input_data'], wcs_out_sub=wcs_out_sub,
-                              shape_out=shape_out_sub, return_footprint=kwargs['return_footprint'])
+                output_array[imin:imax, jmin:jmax] = completed_block[2][0][:]
+                if kwargs['return_footprint']:
+                    output_footprint[imin:imax, jmin:jmax] = completed_block[2][1][:]
 
-            output_array[imin:imax, jmin:jmax] = array_sub[:]
+            #if parallel just submit all work items and move on to waiting for them to be done
+            else:
+                future = proc_pool.submit(_block, reproject_func=reproject_func, input_data=kwargs['input_data'], wcs_out_sub=wcs_out_sub,
+                                 shape_out=shape_out_sub, return_footprint=kwargs['return_footprint'],
+                                 j_range=(jmin, jmax), i_range = (imin, imax))
+                blocks_futures.append(future)
+
+    # If a parallel implementation is being used that means the blocks have not been reassembled yet and must be done now
+    if proc_pool is not None:
+        for completed_future in futures.as_completed(blocks_futures):
+            completed_block = completed_future.result()
+            i_range = completed_block[0]
+            j_range = completed_block[1]
+            output_array[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block[2][0][:]
 
             if kwargs['return_footprint']:
-                output_footprint[imin:imax, jmin:jmax] = footprint_sub[:]
-
-            # footprint[imin:imax, jmin:jmax] = footprint_sub
+                output_footprint[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block[2][1][:]
 
     if kwargs['return_footprint']:
         return output_array, output_footprint
