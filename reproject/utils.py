@@ -1,3 +1,4 @@
+from concurrent import futures
 import numpy as np
 
 import astropy.nddata
@@ -98,3 +99,52 @@ def parse_output_projection(output_projection, shape_out=None, output_array=None
         raise ValueError("The shape of the output image should not be an "
                          "empty tuple")
     return wcs_out, shape_out
+
+
+def reproject_blocked(reprojct_func, block_size=(100,100), output_array=None, output_footprint=None,
+                      parallel=0, **kwargs):
+    print(kwargs)
+    array_in, wcs_in = parse_input_data(kwargs.get('input_data'), hdu_in=kwargs.get('hdu_in'))
+
+    kwargs['wcs_out'], kwargs['shape_out'] = parse_output_projection(kwargs.get('output_projection'), shape_out=kwargs.get('shape_out'),
+                                                 output_array=kwargs.get('output_array'))
+
+
+    if kwargs.get('return_footprint') is None:
+        kwargs['return_footprint'] = True
+
+
+    if output_array is None:
+        output_array = np.zeros(kwargs['shape_out'], dtype=float)
+    if output_footprint is None and kwargs.get('return_footprint') != False:
+        output_footprint = np.zeros(kwargs['shape_out'], dtype=float)
+
+    proc_pool = futures.ProcessPoolExecutor()
+
+    for imin in range(0, output_array.shape[0], block_size[0]):
+        imax = min(imin + block_size[0], output_array.shape[0])
+        print("reprojecting row " + str(imin))
+        for jmin in range(0, output_array.shape[1], block_size[1]):
+            print(jmin)
+            jmax = min(jmin + block_size[1], output_array.shape[1])
+            shape_out_sub = (imax - imin, jmax - jmin)
+            array_sub = np.zeros(shape_out_sub)
+            wcs_out_sub = kwargs['wcs_out'].deepcopy()
+            wcs_out_sub.wcs.crpix[0] -= jmin
+            wcs_out_sub.wcs.crpix[1] -= imin
+
+            array_sub[:], footprint_sub = reprojct_func(input_data=kwargs['input_data'], output_projection=wcs_out_sub,
+                            shape_out=shape_out_sub,
+                            return_footprint=kwargs['return_footprint'])
+
+            output_array[imin:imax, jmin:jmax] = array_sub[:]
+
+            if kwargs['return_footprint']:
+                output_footprint[imin:imax, jmin:jmax] = footprint_sub[:]
+
+            # footprint[imin:imax, jmin:jmax] = footprint_sub
+
+    if kwargs['return_footprint']:
+        return output_array, output_footprint
+    else:
+        return output_array
