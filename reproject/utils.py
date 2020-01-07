@@ -10,6 +10,9 @@ from astropy.wcs.wcsapi import BaseHighLevelWCS
 __all__ = ['parse_input_data', 'parse_input_weights', 'parse_output_projection']
 
 import psutil
+import gc
+from guppy import hpy
+import objgraph
 
 def parse_input_data(input_data, hdu_in=None):
     """
@@ -104,11 +107,15 @@ def parse_output_projection(output_projection, shape_out=None, output_array=None
 
 def _block(reproject_func, input_data, wcs_out_sub, shape_out, i_range, j_range, return_footprint):
     # i and j range must be passed through for multiprocessing impl to know where to reinsert patches
-
     res = reproject_func(input_data=input_data, output_projection=wcs_out_sub,
                                       shape_out=shape_out, return_footprint=return_footprint)
+
+    gc.collect()
     print("Worker thread %d: %0.3f MB" %
           (psutil.Process().pid, psutil.Process().memory_info().rss / 1e6))
+
+    #h = hpy()
+    #print(h.heap())
     return i_range, j_range, res
 
 def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None, output_footprint=None,
@@ -140,6 +147,9 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
         else:
             proc_pool = futures.ProcessPoolExecutor()
 
+    num_blocks = (output_array.shape[0] // block_size[0]) * (output_array.shape[1] // block_size[1])
+    print(output_array.shape[0] // block_size[0])
+    sequential_blocks_done = 0
     for imin in range(0, output_array.shape[0], block_size[0]):
         imax = min(imin + block_size[0], output_array.shape[0])
         for jmin in range(0, output_array.shape[1], block_size[1]):
@@ -159,13 +169,17 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
                 if kwargs['return_footprint']:
                     output_footprint[imin:imax, jmin:jmax] = completed_block[2][1][:]
 
-
+                sequential_blocks_done += 1
+                print("Completed blocks: " + str(sequential_blocks_done) + "/" + str(num_blocks)
+                      + " [" + str(sequential_blocks_done / num_blocks) + "]")
             #if parallel just submit all work items and move on to waiting for them to be done
             else:
                 future = proc_pool.submit(_block, reproject_func=reproject_func, input_data=(array_in, wcs_in), wcs_out_sub=wcs_out_sub,
                                  shape_out=shape_out_sub, return_footprint=kwargs['return_footprint'],
                                  j_range=(jmin, jmax), i_range = (imin, imax))
                 blocks_futures.append(future)
+
+            gc.collect()
 
     # If a parallel implementation is being used that means the blocks have not been reassembled yet and must be done now
     if proc_pool is not None:
@@ -179,14 +193,18 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
             if kwargs['return_footprint']:
                 output_footprint[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block[2][1][:]
             completed_future_count += 1
-            print("Completed blocks: " +str(completed_future_count) +"/" + str(len(blocks_futures))
-                  + " ["+str(completed_future_count/len(blocks_futures)) + "]")
+            print("Completed blocks: " +str(completed_future_count) +"/" + str(num_blocks)
+                  + " ["+str(completed_future_count/num_blocks) + "]")
 
             print("Main thread mem usage: %0.3f MB" %
                   (psutil.Process().memory_info().rss / 1e6))
-            blocks_futures.remove(completed_future)
-            del completed_future
+            idx = blocks_futures.index(completed_future)
+            completed_future._result = None
+            del blocks_futures[idx], completed_future
+        proc_pool.shutdown()
+        del blocks_futures
 
+    gc.collect()
     if kwargs['return_footprint']:
         return output_array, output_footprint
     else:
