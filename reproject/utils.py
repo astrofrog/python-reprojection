@@ -111,12 +111,10 @@ def _block(reproject_func, input_data, wcs_out_sub, shape_out, i_range, j_range,
                                       shape_out=shape_out, return_footprint=return_footprint)
 
     gc.collect()
-    print("Worker thread %d: %0.3f MB" %
-          (psutil.Process().pid, psutil.Process().memory_info().rss / 1e6))
+    #print("Worker thread %d: %0.3f MB" %
+    #      (psutil.Process().pid, psutil.Process().memory_info().rss / 1e6))
 
-    #h = hpy()
-    #print(h.heap())
-    return i_range, j_range, res
+    return {'i':i_range, 'j':j_range, 'block':res}
 
 def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None, output_footprint=None,
                       parallel=False, **kwargs):
@@ -141,13 +139,16 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
     #setup variables needed for multiprocessing if required
     proc_pool = None
     blocks_futures = []
-    if parallel == True or parallel is int:
-        if parallel is int:
-            proc_pool = futures.ProcessPoolExecutor(parallel)
-        else:
-            proc_pool = futures.ProcessPoolExecutor()
 
-    num_blocks = (output_array.shape[0] // block_size[0]) * (output_array.shape[1] // block_size[1])
+    if parallel == True or type(parallel) is int:
+        if type(parallel) is int:
+            print('doing the other one' + str(parallel))
+            proc_pool = futures.ProcessPoolExecutor(max_workers=parallel)
+        else:
+            print("tr_ue")
+            proc_pool = futures.ProcessPoolExecutor()
+        print("Workers: "+str(proc_pool._max_workers))
+    num_blocks = ((output_array.shape[0] // block_size[0])+1) * ((output_array.shape[1] // block_size[1])+1)
     print(output_array.shape[0] // block_size[0])
     sequential_blocks_done = 0
     for imin in range(0, output_array.shape[0], block_size[0]):
@@ -165,13 +166,13 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
                                  shape_out=shape_out_sub, return_footprint=kwargs['return_footprint'],
                                         j_range=(jmin, jmax), i_range = (imin, imax))
 
-                output_array[imin:imax, jmin:jmax] = completed_block[2][0][:]
+                output_array[imin:imax, jmin:jmax] = completed_block['block'][0][:]
                 if kwargs['return_footprint']:
-                    output_footprint[imin:imax, jmin:jmax] = completed_block[2][1][:]
+                    output_footprint[imin:imax, jmin:jmax] = completed_block['block'][1][:]
 
                 sequential_blocks_done += 1
-                print("Completed blocks: " + str(sequential_blocks_done) + "/" + str(num_blocks)
-                      + " [" + str(sequential_blocks_done / num_blocks) + "]")
+                #print("Completed blocks: " + str(sequential_blocks_done) + "/" + str(num_blocks)
+                #      + " [" + str(sequential_blocks_done / num_blocks) + "]")
             #if parallel just submit all work items and move on to waiting for them to be done
             else:
                 future = proc_pool.submit(_block, reproject_func=reproject_func, input_data=(array_in, wcs_in), wcs_out_sub=wcs_out_sub,
@@ -186,18 +187,18 @@ def reproject_blocked(reproject_func, block_size=(4000,4000), output_array=None,
         completed_future_count = 0
         for completed_future in futures.as_completed(blocks_futures):
             completed_block = completed_future.result()
-            i_range = completed_block[0]
-            j_range = completed_block[1]
-            output_array[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block[2][0][:]
+            i_range = completed_block['i']
+            j_range = completed_block['j']
+            output_array[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block['block'][0][:]
 
             if kwargs['return_footprint']:
-                output_footprint[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block[2][1][:]
+                output_footprint[i_range[0]:i_range[1], j_range[0]:j_range[1]] = completed_block['block'][1][:]
             completed_future_count += 1
-            print("Completed blocks: " +str(completed_future_count) +"/" + str(num_blocks)
-                  + " ["+str(completed_future_count/num_blocks) + "]")
-
-            print("Main thread mem usage: %0.3f MB" %
-                  (psutil.Process().memory_info().rss / 1e6))
+            #print("Completed blocks: " +str(completed_future_count) +"/" + str(num_blocks)
+            #      + " ["+str(completed_future_count/num_blocks) + "]")
+            #
+            #print("Main thread mem usage: %0.3f MB" %
+            #      (psutil.Process().memory_info().rss / 1e6))
             idx = blocks_futures.index(completed_future)
             completed_future._result = None
             del blocks_futures[idx], completed_future
