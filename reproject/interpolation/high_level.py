@@ -16,7 +16,9 @@ ORDER['bicubic'] = 3
 
 @deprecated_renamed_argument('independent_celestial_slices', None, since='0.6')
 def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
-                     order='bilinear', output_array=None, return_footprint=True):
+                     order='bilinear', output_array=None, return_footprint=True,
+                     output_footprint=None, block_size=None, parallel=False):
+
     """
     Reproject data to a new projection using interpolation (this is typically
     the fastest way to reproject an image).
@@ -63,6 +65,15 @@ def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
         extremely large files.
     return_footprint : bool
         Whether to return the footprint in addition to the output array.
+    output_footprint : None or `~numpy.ndarray`
+        An array in which to store the reprojected footprint.  This can be any numpy
+        array including a memory map, which may be helpful when dealing with
+        extremely large files.
+    block_size : None or tuple of (int, int)
+        If not none, a blocked projection will be performed where the output space is
+        reprojected to one block at a time, this is useful for memory limited scenarios
+        such as dealing with very large arrays or high resolution output spaces.
+    parallel : bool or int
 
     Returns
     -------
@@ -81,5 +92,10 @@ def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
     if isinstance(order, str):
         order = ORDER[order]
 
-    return _reproject_full(array_in, wcs_in, wcs_out, shape_out=shape_out, order=order,
+    # if either of these are not default, it means a blocked method must be used
+    if block_size is not None or parallel is not False:
+        #if parallel is set but block size isn't just divide output dimensions by number of processes to get block size?
+        print("Hi, I'm handing the blocked case!")
+    else:
+        return _reproject_full(array_in, wcs_in, wcs_out, shape_out=shape_out, order=order,
                            array_out=output_array, return_footprint=return_footprint)
