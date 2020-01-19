@@ -9,11 +9,6 @@ from astropy.wcs.wcsapi import BaseHighLevelWCS
 
 __all__ = ['parse_input_data', 'parse_input_weights', 'parse_output_projection']
 
-import psutil
-import gc
-from guppy import hpy
-import objgraph
-
 def parse_input_data(input_data, hdu_in=None):
     """
     Parse input data to return a Numpy array and WCS object.
