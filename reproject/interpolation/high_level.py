@@ -96,9 +96,9 @@ def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
     if block_size is not None or parallel is not False:
         # if parallel is set but block size isn't, we'll choose block size so each thread gets one block each
         if parallel is not False and block_size is None:
-            block_size = tuple(dim// os.cpu_count() for dim in shape_out)
+            block_size = tuple(dim // os.cpu_count() for dim in shape_out)
         return reproject_blocked(_reproject_full, array_in=array_in, wcs_in=wcs_in, wcs_out=wcs_out,
-                                 shape_out=shape_out,output_array=output_array, parallel=parallel,
+                                 shape_out=shape_out, output_array=output_array, parallel=parallel,
                                  block_size=block_size)
     else:
         return _reproject_full(array_in, wcs_in, wcs_out, shape_out=shape_out, order=order,

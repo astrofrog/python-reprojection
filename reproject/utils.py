@@ -103,21 +103,19 @@ def parse_output_projection(output_projection, shape_out=None, output_array=None
 def _block(reproject_func, array_in, wcs_in, wcs_out_sub, shape_out, i_range, j_range, return_footprint):
     # i and j range must be passed through for multiprocessing impl to know where to reinsert patches
     res = reproject_func(array_in, wcs_in, wcs_out_sub,
-                                      shape_out=shape_out, return_footprint=return_footprint)
+                         shape_out=shape_out, return_footprint=return_footprint)
 
-    return {'i':i_range, 'j':j_range, 'block':res}
+    return {'i': i_range, 'j': j_range, 'block': res}
 
 
 def reproject_blocked(reproject_func, array_in, wcs_in, shape_out, wcs_out, block_size, output_array=None,
                       return_footprint=True, output_footprint=None, parallel=True):
-
-
     if output_array is None:
         output_array = np.zeros(shape_out, dtype=float)
     if output_footprint is None and return_footprint != False:
         output_footprint = np.zeros(shape_out, dtype=float)
 
-    #setup variables needed for multiprocessing if required
+    # setup variables needed for multiprocessing if required
     proc_pool = None
     blocks_futures = []
 
@@ -137,12 +135,12 @@ def reproject_blocked(reproject_func, array_in, wcs_in, shape_out, wcs_out, bloc
             wcs_out_sub.wcs.crpix[0] -= jmin
             wcs_out_sub.wcs.crpix[1] -= imin
 
-
             if proc_pool is None:
                 # if sequential input data and reinsert block into main array immediately
                 completed_block = _block(reproject_func=reproject_func, array_in=array_in, wcs_in=wcs_in,
-                                         wcs_out_sub=wcs_out_sub, shape_out=shape_out_sub, return_footprint=return_footprint,
-                                        j_range=(jmin, jmax), i_range = (imin, imax))
+                                         wcs_out_sub=wcs_out_sub, shape_out=shape_out_sub,
+                                         return_footprint=return_footprint,
+                                         j_range=(jmin, jmax), i_range=(imin, imax))
 
                 output_array[imin:imax, jmin:jmax] = completed_block['block'][0][:]
                 if return_footprint:
@@ -153,11 +151,11 @@ def reproject_blocked(reproject_func, array_in, wcs_in, shape_out, wcs_out, bloc
                 # if parallel just submit all work items and move on to waiting for them to be done
                 future = proc_pool.submit(_block, reproject_func=reproject_func, array_in=array_in, wcs_in=wcs_in,
                                           wcs_out_sub=wcs_out_sub, shape_out=shape_out_sub,
-                                          return_footprint=return_footprint, j_range=(jmin, jmax), i_range = (imin, imax))
+                                          return_footprint=return_footprint, j_range=(jmin, jmax), i_range=(imin, imax))
                 blocks_futures.append(future)
 
-
-    # If a parallel implementation is being used that means the blocks have not been reassembled yet and must be done now
+    # If a parallel implementation is being used that means the
+    # blocks have not been reassembled yet and must be done now
     if proc_pool is not None:
         completed_future_count = 0
         for completed_future in futures.as_completed(blocks_futures):
