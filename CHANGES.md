@@ -1,11 +1,45 @@
-0.7 (unreleased)
+0.8 (unreleased)
+----------------
+
+- Improve ``find_optimal_celestial_wcs`` to accept input data descriptions as
+  just array shapes, not necessarily fully populated arrays. This makes it
+  possible to solve for the optimal WCS for a set of images that couldn't fit
+  into memory all at once, since the actual data aren't needed for optimal WCS
+  determination. [#242]
+
+0.7.1 (2020-05-29)
+------------------
+
+- Fixed compatibility with Astropy 4.1. [#234]
+
+- Updated minimum requirement for SciPy. [#236]
+
+0.7 (2020-04-02)
 ----------------
 
 - Made C extension in overlapArea.c thread-safe by removing global
-  variables.
+  variables. [#211]
 
 - Made it possible to control whether to output debugging information
-  from overlapArea.c by setting DEBUG_OVERLAP_AREA=1 at build-time.
+  from overlapArea.c by setting DEBUG_OVERLAP_AREA=1 at build-time. [#211]
+
+- Fix compatibility with astropy v4.0.1. [#227]
+
+- Disable parallelization by default in ``reproject_exact`` - this can be
+  enabled with ``parallel=True``. [#227]
+
+- Fixed a bug with ``reproject_exact`` with ``parallel=False`` and
+  ``return_footprint=False``, which caused the footprint to be returned
+  anyway. [#227]
+
+- The infrastructure of the package has been updated in line with the
+  APE 17 roadmap (https://github.com/astropy/astropy-APEs/blob/master/APE17.rst).
+  The main changes are that the ``python setup.py test`` and
+  ``python setup.py build_docs`` commands will no longer work. The
+  easiest way to replicate these commands is to install the tox
+  (https://tox.readthedocs.io) package and run ``tox -e test`` and
+  ``tox -e build_docs``. It is also possible to run pytest and sphinx
+  directly. [#228]
 
 0.6 (2019-11-01)
 ----------------
