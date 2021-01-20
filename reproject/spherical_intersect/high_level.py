@@ -8,7 +8,7 @@ __all__ = ['reproject_exact']
 
 
 def reproject_exact(input_data, output_projection, shape_out=None, hdu_in=0,
-                    parallel=True, return_footprint=True):
+                    parallel=False, return_footprint=True):
     """
     Reproject data to a new projection using flux-conserving spherical
     polygon intersection (this is the slowest algorithm).
@@ -26,7 +26,7 @@ def reproject_exact(input_data, output_projection, shape_out=None, hdu_in=0,
             * A tuple where the first element is a `~numpy.ndarray` and the
               second element is either a `~astropy.wcs.WCS` or a
               `~astropy.io.fits.Header` object
-            * A `astropy.nddata.NDData` object from which the ``.data`` and
+            * An `~astropy.nddata.NDData` object from which the ``.data`` and
               ``.wcs`` attributes will be used as the input data.
 
     output_projection : `~astropy.wcs.WCS` or `~astropy.io.fits.Header`

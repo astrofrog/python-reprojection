@@ -16,7 +16,8 @@ ORDER['bicubic'] = 3
 
 @deprecated_renamed_argument('independent_celestial_slices', None, since='0.6')
 def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
-                     order='bilinear', output_array=None, return_footprint=True):
+                     order='bilinear', independent_celestial_slices=False,
+                     output_array=None, return_footprint=True):
     """
     Reproject data to a new projection using interpolation (this is typically
     the fastest way to reproject an image).
@@ -34,7 +35,7 @@ def reproject_interp(input_data, output_projection, shape_out=None, hdu_in=0,
             * A tuple where the first element is a `~numpy.ndarray` and the
               second element is either a `~astropy.wcs.WCS` or a
               `~astropy.io.fits.Header` object
-            * A `astropy.nddata.NDData` object from which the ``.data`` and
+            * An `~astropy.nddata.NDData` object from which the ``.data`` and
               ``.wcs`` attributes will be used as the input data.
 
     output_projection : `~astropy.wcs.WCS` or `~astropy.io.fits.Header`

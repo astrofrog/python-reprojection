@@ -34,6 +34,10 @@ and to run the tests, you will also need:
 
 * `pytest-arraydiff <https://github.com/astrofrog/pytest-fits>`__
 
+* `pytest-astropy <https://github.com/astropy/pytest-astropy>`__
+
+* `pytest-doctestplus <https://github.com/astropy/pytest-doctestplus>`__
+
 
 Installation
 ============
@@ -51,4 +55,4 @@ Using conda
 
 To install *reproject* with `anaconda <https://continuum.io/>`_, simply run::
 
-    conda install -c astropy reproject
+    conda install -c conda-forge reproject
